@@ -56,7 +56,9 @@ result = fine_tune_pat(X, y, all_day_cycles=True)
 ```
 
 This option requires seven-day (10,080-minute) records and augments only the
-training split.
+training split. The encoder is fine-tuned by default, so `all_day_cycles=True`
+updates both the encoder and prediction head with each rotation. Use
+`--freeze-encoder` in `scripts/finetune_gpu.py` only for a head-only baseline.
 
 `task="auto"` (the default) uses a binary model for an outcome with exactly two
 distinct values; otherwise it fits a continuous regression model. Set

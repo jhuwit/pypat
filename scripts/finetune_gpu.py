@@ -81,6 +81,7 @@ def main() -> None:
         learning_rate=arguments.learning_rate,
         patience=arguments.patience,
         all_day_cycles=arguments.all_day_cycles,
+        freeze_encoder=arguments.freeze_encoder,
         verbose=2,
     )
     _save_results(result, arguments.output_dir, arguments.outcome_column)
@@ -103,6 +104,11 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument("--random-state", type=int, default=20260722)
     parser.add_argument("--start-day", type=int, default=None, help="Optional cyclic first day for the week (2 through 8).")
     parser.add_argument("--all-day-cycles", action="store_true", help="Augment only training participants with all seven day rotations.")
+    parser.add_argument(
+        "--freeze-encoder",
+        action="store_true",
+        help="Train only the prediction head. By default, the pretrained encoder is fine-tuned too.",
+    )
     parser.add_argument("--pad-one-missing-day", action="store_true", help="Use a zero-filled day for participants missing exactly one day.")
     parser.add_argument("--max-participants", type=int, default=None, help="Optional development subset; omit for the full cohort.")
     parser.add_argument("--require-gpu", action="store_true", help="Fail rather than fall back to CPU when no GPU is visible.")
