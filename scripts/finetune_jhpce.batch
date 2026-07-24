@@ -56,6 +56,6 @@ python -u scripts/finetune_gpu.py \
   --outcome-column "$OUTCOME_COLUMN" \
   --epochs 1000 \
   --patience 200 \
-  --batch-size 16 \
+  --batch-size 8 \
   --output-dir "runs/${OUTCOME_COLUMN}_gpu_${SLURM_JOB_ID}" \
   -v
