@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
+import sys
+
+# Allow this script to run directly from a source checkout without first doing
+# an editable install. Insert the local package ahead of any older pypat copy
+# that may already be installed in the active environment.
+SOURCE_DIRECTORY = Path(__file__).resolve().parents[1] / "src"
+sys.path.insert(0, str(SOURCE_DIRECTORY))
 
 from pypat.datasets import load_nhanes_weekly_accelerometry
 
@@ -15,12 +23,20 @@ def main() -> None:
         "--day-order",
         help="Explicit comma-separated ordering of days 2--8, e.g. 8,7,2,3,4,5,6.",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Show preparation progress; repeat (-vv) for periodic CSV chunk updates.",
+    )
     arguments = parser.parse_args()
     day_order = tuple(int(day) for day in arguments.day_order.split(",")) if arguments.day_order else None
     X, participant_ids = load_nhanes_weekly_accelerometry(
         arguments.data_path,
         start_day=arguments.start_day,
         day_order=day_order,
+        verbose=arguments.verbose,
     )
     print(f"Prepared X with shape {X.shape} for {len(participant_ids)} participants.")
     print("participant_ids is aligned row-for-row with X.")

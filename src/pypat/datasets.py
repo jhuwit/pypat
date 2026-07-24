@@ -25,6 +25,7 @@ def load_nhanes_weekly_accelerometry(
     chunksize: int = 5_000,
     start_day: int | None = None,
     day_order: tuple[int, ...] | None = None,
+    verbose: int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Load complete NHANES days 2--8 as one weekly accelerometry record.
 
@@ -37,18 +38,28 @@ def load_nhanes_weekly_accelerometry(
     """
     path = Path(data_path)
     if not path.exists():
+        if verbose:
+            print(f"Downloading NHANES accelerometry data to {path}...")
         _download(url, path)
+    elif verbose:
+        print(f"Using cached NHANES accelerometry data: {path}")
     selected_day_order = _resolve_day_order(start_day, day_order)
+    if verbose:
+        print(f"Preparing complete days in order: {selected_day_order}")
 
     minute_columns = [f"min_{minute:04d}" for minute in range(1, NHANES_MINUTES_PER_DAY + 1)]
     required_columns = ["SEQN", "PAXDAYM", *minute_columns]
     if chunksize < 1:
         raise ValueError("chunksize must be positive.")
     week_chunks = []
-    for chunk in pd.read_csv(path, compression="xz", usecols=required_columns, chunksize=chunksize):
+    for chunk_number, chunk in enumerate(
+        pd.read_csv(path, compression="xz", usecols=required_columns, chunksize=chunksize), start=1
+    ):
         week_chunk = chunk.loc[chunk["PAXDAYM"].isin(NHANES_COMPLETE_DAYS), required_columns]
         if not week_chunk.empty:
             week_chunks.append(week_chunk)
+        if verbose > 1 and chunk_number % 25 == 0:
+            print(f"Read {chunk_number * chunksize:,} source rows...")
     if not week_chunks:
         raise ValueError("NHANES data contains no records for days 2 through 8.")
     week_data = pd.concat(week_chunks, ignore_index=True).sort_values(["SEQN", "PAXDAYM"])
@@ -62,7 +73,10 @@ def load_nhanes_weekly_accelerometry(
     participant_ids = week_data["SEQN"].drop_duplicates().to_numpy()
     # fill in the missing data with 0
     minutes = week_data.loc[:, minute_columns].fillna(fillna).to_numpy(dtype=np.float32)
-    return minutes.reshape(len(participant_ids), 7 * NHANES_MINUTES_PER_DAY), participant_ids
+    X = minutes.reshape(len(participant_ids), 7 * NHANES_MINUTES_PER_DAY)
+    if verbose:
+        print(f"Kept {len(participant_ids):,} participants with all seven complete days.")
+    return X, participant_ids
 
 
 def rotate_nhanes_weekly_accelerometry(
