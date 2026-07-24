@@ -15,6 +15,9 @@ dependencies = [
     "tensorflow",
 ]
 
+[project.optional-dependencies]
+rds = ["pyreadr"]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

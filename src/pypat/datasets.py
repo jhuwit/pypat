@@ -27,14 +27,61 @@ def load_nhanes_weekly_accelerometry(
     day_order: tuple[int, ...] | None = None,
     verbose: int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Load complete NHANES days 2--8 as one weekly accelerometry record.
+    """Load complete NHANES days 2--8 into weekly accelerometry records.
 
-    If ``data_path`` is missing, the compressed source CSV is downloaded from
-    PhysioNet. The returned ``X`` has shape ``(participants, 10080)`` and is
-    ordered to match ``participant_ids``. Missing minute values are replaced by
-    ``fillna``. By default, days are ordered ``(2, 3, ..., 8)``. Set
-    ``start_day`` for a cyclic rotation (for example, ``start_day=8`` gives
-    ``(8, 2, 3, ..., 7)``), or use ``day_order`` for an explicit ordering.
+    The source is PhysioNet's minute-level NHANES activity CSV. The function
+    uses a local compressed CSV when available and downloads it only when
+    ``data_path`` does not exist. It retains participants with exactly one
+    observation for each of days 2 through 8. Days 1 and 9 are excluded
+    because they may be incomplete. Seven daily 1,440-minute records are then
+    concatenated into one 10,080-minute row per participant.
+
+    Parameters
+    ----------
+    data_path
+        Local path for the compressed ``.csv.xz`` source file. This is also
+        the destination when a download is necessary.
+    url
+        PhysioNet source URL used only when ``data_path`` is absent.
+    fillna
+        Value used for missing minute-level activity values. The default is
+        ``0.0``.
+    chunksize
+        Number of source rows to parse at a time. Chunked reading limits peak
+        memory use for the large compressed CSV. Must be positive.
+    start_day
+        Optional first day for a cyclic ordering of the seven retained days.
+        For example, ``start_day=8`` returns days in the order
+        ``(8, 2, 3, 4, 5, 6, 7)``. Cannot be combined with ``day_order``.
+    day_order
+        Optional explicit permutation of ``(2, 3, 4, 5, 6, 7, 8)``. This
+        permits non-cyclic orders, such as ``(8, 7, 2, 3, 4, 5, 6)``. Cannot
+        be combined with ``start_day``.
+    verbose
+        Set to 1 to report download/cache and preparation milestones; set to 2
+        to additionally report periodic source-row progress.
+
+    Returns
+    -------
+    X
+        ``float32`` array with shape ``(n_participants, 10080)``. Each row is
+        one ordered seven-day activity record.
+    participant_ids
+        One-dimensional ``SEQN`` array aligned row-for-row with ``X``. Join an
+        outcome table to these IDs before passing its aligned outcome vector
+        to :func:`pypat.finetune.fine_tune_pat`.
+
+    Examples
+    --------
+    Load default day order and train after aligning an outcome::
+
+        X, participant_ids = load_nhanes_weekly_accelerometry()
+        y = outcomes.set_index("SEQN").loc[participant_ids, "outcome"].to_numpy()
+        result = fine_tune_pat(X, y)
+
+    Load a cyclically shifted week to reduce first-day-position effects::
+
+        X, participant_ids = load_nhanes_weekly_accelerometry(start_day=8)
     """
     path = Path(data_path)
     if not path.exists():

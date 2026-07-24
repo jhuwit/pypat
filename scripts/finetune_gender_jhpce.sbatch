@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Submit from the project root with:
+#   sbatch scripts/finetune_gender_jhpce.sbatch
+#
+# Before the first submission, create an environment with:
+#   python -m venv .venv
+#   source .venv/bin/activate
+#   python -m pip install --upgrade pip
+#   python -m pip install -e ".[rds]"
+
+#SBATCH --job-name=pypat-gender
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --gpu-bind=closest
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=12:00:00
+#SBATCH --output=slurm-%x-%j.out
+#SBATCH --error=slurm-%x-%j.err
+
+set -euo pipefail
+
+# Resolve the repository root even if sbatch is invoked from another directory.
+PROJECT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_DIRECTORY"
+
+# Set PYPAT_ENV to the path of a pre-existing virtual environment if it is not
+# at .venv in the project root. A virtual environment is preferred over the
+# system Python because TensorFlow, pandas, and pyreadr are required.
+PYPAT_ENV="${PYPAT_ENV:-$PROJECT_DIRECTORY/.venv}"
+if [[ ! -f "$PYPAT_ENV/bin/activate" ]]; then
+  echo "Python virtual environment not found: $PYPAT_ENV" >&2
+  echo "Create it with: python -m venv .venv && .venv/bin/pip install -e '.[rds]'" >&2
+  exit 1
+fi
+source "$PYPAT_ENV/bin/activate"
+
+# Keep temporary caches off a shared home directory and limit CPU-side thread
+# oversubscription. SLURM exposes the assigned GPU through CUDA_VISIBLE_DEVICES.
+export MPLCONFIGDIR="${SLURM_TMPDIR:-/tmp}/matplotlib-${SLURM_JOB_ID}"
+mkdir -p "$MPLCONFIGDIR"
+export TF_NUM_INTRAOP_THREADS="${SLURM_CPUS_PER_TASK:-8}"
+export TF_NUM_INTEROP_THREADS=2
+
+echo "Host: $(hostname)"
+echo "Job ID: ${SLURM_JOB_ID}"
+echo "Python: $(python --version)"
+echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
+nvidia-smi
+
+python -u scripts/finetune_gender_gpu.py \
+  --require-gpu \
+  --epochs 30 \
+  --batch-size 16 \
+  --output-dir "runs/gender_gpu_${SLURM_JOB_ID}" \
+  -v
