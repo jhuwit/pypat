@@ -27,6 +27,7 @@ def load_nhanes_weekly_accelerometry(
     day_order: tuple[int, ...] | None = None,
     verbose: int = 0,
     max_participants: int | None = None,
+    pad_one_missing_day: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Load complete NHANES days 2--8 into weekly accelerometry records.
 
@@ -66,6 +67,10 @@ def load_nhanes_weekly_accelerometry(
         parsing stops after the first complete participants in the PhysioNet
         file have been collected. This is useful for quick Colab experiments;
         use ``None`` (the default) for the full cohort.
+    pad_one_missing_day
+        If true, retain participants with exactly six distinct days among days
+        2--8 and insert an all-``fillna`` block at the missing day. Participants
+        with two or more missing days, or duplicate day records, are excluded.
 
     Returns
     -------
@@ -118,30 +123,52 @@ def load_nhanes_weekly_accelerometry(
         if max_participants is not None:
             candidates = pd.concat(week_chunks, ignore_index=True)
             candidate_counts = candidates.groupby("SEQN")["PAXDAYM"].agg(["count", "nunique"])
-            complete_count = ((candidate_counts["count"] == 7) & (candidate_counts["nunique"] == 7)).sum()
-            if complete_count >= max_participants:
+            eligible_count = _eligible_participants(candidate_counts, pad_one_missing_day).sum()
+            if eligible_count >= max_participants:
                 if verbose:
-                    print(f"Collected {complete_count:,} complete participants; stopping early.")
+                    print(f"Collected {eligible_count:,} eligible participants; stopping early.")
                 break
     if not week_chunks:
         raise ValueError("NHANES data contains no records for days 2 through 8.")
     week_data = pd.concat(week_chunks, ignore_index=True).sort_values(["SEQN", "PAXDAYM"])
     day_counts = week_data.groupby("SEQN")["PAXDAYM"].agg(["count", "nunique"])
-    complete_ids = day_counts.index[(day_counts["count"] == 7) & (day_counts["nunique"] == 7)]
+    _print_completeness(day_counts, verbose)
+    complete_ids = day_counts.index[_eligible_participants(day_counts, pad_one_missing_day)]
     if max_participants is not None:
         complete_ids = complete_ids[:max_participants]
     week_data = week_data.loc[week_data["SEQN"].isin(complete_ids)].copy()
-    week_data["PAXDAYM"] = pd.Categorical(
-        week_data["PAXDAYM"], categories=selected_day_order, ordered=True
-    )
-    week_data = week_data.sort_values(["SEQN", "PAXDAYM"])
-    participant_ids = week_data["SEQN"].drop_duplicates().to_numpy()
-    # fill in the missing data with 0
+    target_index = pd.MultiIndex.from_product([complete_ids, selected_day_order], names=["SEQN", "PAXDAYM"])
+    week_data = week_data.set_index(["SEQN", "PAXDAYM"]).reindex(target_index).reset_index()
+    participant_ids = complete_ids.to_numpy()
     minutes = week_data.loc[:, minute_columns].fillna(fillna).to_numpy(dtype=np.float32)
     X = minutes.reshape(len(participant_ids), 7 * NHANES_MINUTES_PER_DAY)
     if verbose:
-        print(f"Kept {len(participant_ids):,} participants with all seven complete days.")
+        padded = ((day_counts.loc[complete_ids, "count"] == 6) & (day_counts.loc[complete_ids, "nunique"] == 6)).sum()
+        print(f"Kept {len(participant_ids):,} participants; padded one missing day for {padded:,}.")
     return X, participant_ids
+
+
+def _eligible_participants(day_counts: pd.DataFrame, pad_one_missing_day: bool) -> pd.Series:
+    complete = (day_counts["count"] == 7) & (day_counts["nunique"] == 7)
+    if not pad_one_missing_day:
+        return complete
+    one_missing = (day_counts["count"] == 6) & (day_counts["nunique"] == 6)
+    return complete | one_missing
+
+
+def _print_completeness(day_counts: pd.DataFrame, verbose: int) -> None:
+    """Print participant-day completeness categories for the parsed source rows."""
+    if not verbose:
+        return
+    complete = ((day_counts["count"] == 7) & (day_counts["nunique"] == 7)).sum()
+    one_missing = ((day_counts["count"] == 6) & (day_counts["nunique"] == 6)).sum()
+    duplicate_days = (day_counts["count"] != day_counts["nunique"]).sum()
+    other_incomplete = len(day_counts) - complete - one_missing - duplicate_days
+    print(
+        "Day completeness among parsed participants: "
+        f"{complete:,} complete (7/7); {one_missing:,} missing exactly one day; "
+        f"{other_incomplete:,} missing two or more days; {duplicate_days:,} with duplicate day records."
+    )
 
 
 def rotate_nhanes_weekly_accelerometry(

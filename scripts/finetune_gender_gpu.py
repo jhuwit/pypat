@@ -45,6 +45,7 @@ def main() -> None:
         start_day=arguments.start_day,
         verbose=arguments.verbose,
         max_participants=load_limit,
+        pad_one_missing_day=arguments.pad_one_missing_day,
     )
     X, y, participant_ids = _align_gender(X, participant_ids, gender)
     if arguments.max_participants is not None:
@@ -84,6 +85,7 @@ def _parse_arguments() -> argparse.Namespace:
     parser.add_argument("--random-state", type=int, default=20260722)
     parser.add_argument("--start-day", type=int, default=None, help="Optional cyclic first day for the week (2 through 8).")
     parser.add_argument("--all-day-cycles", action="store_true", help="Augment only training participants with all seven day rotations.")
+    parser.add_argument("--pad-one-missing-day", action="store_true", help="Use a zero-filled day for participants missing exactly one day.")
     parser.add_argument("--max-participants", type=int, default=None, help="Optional stratified development subset; omit for the full cohort.")
     parser.add_argument("--require-gpu", action="store_true", help="Fail rather than fall back to CPU when no GPU is visible.")
     parser.add_argument("-v", "--verbose", action="count", default=0)

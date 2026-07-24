@@ -17,3 +17,4 @@ foundation_model_fine_tune_pat_+_model_explainability.py
 __pycache__/
 covariates_mortality_G_H_tidy.rds
 data
+*.zip

@@ -120,6 +120,12 @@ python scripts/finetune_gender_gpu.py \
 When `--max-participants` is set, loading stops after a small buffer of complete
 activity weeks is available, then selects the requested stratified cohort.
 
+By default, a complete week has one record for every day 2--8. Both preparation
+scripts report counts of complete, one-day-missing, more-incomplete, and
+duplicate-day participants with `-v`. Add `--pad-one-missing-day` to retain
+participants missing exactly one daily record; its entire 1,440-minute block is
+filled with zeros.
+
 On JHPCE, submit [finetune_gender_jhpce.sbatch](scripts/finetune_gender_jhpce.sbatch)
 from the project root after creating `.venv` as described at the top of that
 file:

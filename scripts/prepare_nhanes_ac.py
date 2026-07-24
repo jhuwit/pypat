@@ -30,6 +30,11 @@ def main() -> None:
         default=0,
         help="Show preparation progress; repeat (-vv) for periodic CSV chunk updates.",
     )
+    parser.add_argument(
+        "--pad-one-missing-day",
+        action="store_true",
+        help="Accept exactly six days and insert a zero-filled block for the missing day.",
+    )
     arguments = parser.parse_args()
     day_order = tuple(int(day) for day in arguments.day_order.split(",")) if arguments.day_order else None
     X, participant_ids = load_nhanes_weekly_accelerometry(
@@ -37,6 +42,7 @@ def main() -> None:
         start_day=arguments.start_day,
         day_order=day_order,
         verbose=arguments.verbose,
+        pad_one_missing_day=arguments.pad_one_missing_day,
     )
     print(f"Prepared X with shape {X.shape} for {len(participant_ids)} participants.")
     print("participant_ids is aligned row-for-row with X.")
