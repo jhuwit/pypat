@@ -49,8 +49,8 @@ nvidia-smi
 
 python -u scripts/finetune_gender_gpu.py \
   --require-gpu \
-  --epochs 30 \
-  --patience 30 \
+  --epochs 1000 \
+  --patience 200 \
   --batch-size 16 \
   --output-dir "runs/gender_gpu_${SLURM_JOB_ID}" \
   -v
