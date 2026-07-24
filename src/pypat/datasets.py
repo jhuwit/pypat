@@ -26,6 +26,7 @@ def load_nhanes_weekly_accelerometry(
     start_day: int | None = None,
     day_order: tuple[int, ...] | None = None,
     verbose: int = 0,
+    max_participants: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Load complete NHANES days 2--8 into weekly accelerometry records.
 
@@ -60,6 +61,11 @@ def load_nhanes_weekly_accelerometry(
     verbose
         Set to 1 to report download/cache and preparation milestones; set to 2
         to additionally report periodic source-row progress.
+    max_participants
+        Optional maximum number of complete participants to load. When set,
+        parsing stops after the first complete participants in the PhysioNet
+        file have been collected. This is useful for quick Colab experiments;
+        use ``None`` (the default) for the full cohort.
 
     Returns
     -------
@@ -98,6 +104,8 @@ def load_nhanes_weekly_accelerometry(
     required_columns = ["SEQN", "PAXDAYM", *minute_columns]
     if chunksize < 1:
         raise ValueError("chunksize must be positive.")
+    if max_participants is not None and max_participants < 1:
+        raise ValueError("max_participants must be positive when provided.")
     week_chunks = []
     for chunk_number, chunk in enumerate(
         pd.read_csv(path, compression="xz", usecols=required_columns, chunksize=chunksize), start=1
@@ -107,11 +115,21 @@ def load_nhanes_weekly_accelerometry(
             week_chunks.append(week_chunk)
         if verbose > 1 and chunk_number % 25 == 0:
             print(f"Read {chunk_number * chunksize:,} source rows...")
+        if max_participants is not None:
+            candidates = pd.concat(week_chunks, ignore_index=True)
+            candidate_counts = candidates.groupby("SEQN")["PAXDAYM"].agg(["count", "nunique"])
+            complete_count = ((candidate_counts["count"] == 7) & (candidate_counts["nunique"] == 7)).sum()
+            if complete_count >= max_participants:
+                if verbose:
+                    print(f"Collected {complete_count:,} complete participants; stopping early.")
+                break
     if not week_chunks:
         raise ValueError("NHANES data contains no records for days 2 through 8.")
     week_data = pd.concat(week_chunks, ignore_index=True).sort_values(["SEQN", "PAXDAYM"])
     day_counts = week_data.groupby("SEQN")["PAXDAYM"].agg(["count", "nunique"])
     complete_ids = day_counts.index[(day_counts["count"] == 7) & (day_counts["nunique"] == 7)]
+    if max_participants is not None:
+        complete_ids = complete_ids[:max_participants]
     week_data = week_data.loc[week_data["SEQN"].isin(complete_ids)].copy()
     week_data["PAXDAYM"] = pd.Categorical(
         week_data["PAXDAYM"], categories=selected_day_order, ordered=True

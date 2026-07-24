@@ -109,6 +109,17 @@ participant-level train/validation/test split, and saves ROC AUC, average
 precision, accuracy, balanced accuracy, F1, log loss, a confusion matrix, test
 predictions, and the fine-tuned weights under `runs/gender_gpu/`.
 
+For a Colab GPU smoke test, use a small participant cohort and conservative
+batch size; the full 10,080-minute attention model is memory intensive:
+
+```bash
+python scripts/finetune_gender_gpu.py \
+  --max-participants 100 --epochs 5 --batch-size 2 --output-dir runs/gender_colab
+```
+
+When `--max-participants` is set, loading stops after a small buffer of complete
+activity weeks is available, then selects the requested stratified cohort.
+
 On JHPCE, submit [finetune_gender_jhpce.sbatch](scripts/finetune_gender_jhpce.sbatch)
 from the project root after creating `.venv` as described at the top of that
 file:

@@ -81,6 +81,16 @@ class FineTuneHelpersTest(unittest.TestCase):
         np.testing.assert_array_equal(participant_ids, [1])
         self.assertEqual(X[0, 0], 2)
 
+    def test_nhanes_loader_can_stop_after_requested_complete_participants(self) -> None:
+        minute_columns = {f"min_{minute:04d}": 1 for minute in range(1, 1441)}
+        rows = [{"SEQN": identifier, "PAXDAYM": day, **minute_columns} for identifier in (1, 2) for day in range(2, 9)]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "nhanes.csv.xz"
+            pd.DataFrame(rows).to_csv(path, index=False, compression="xz")
+            X, participant_ids = load_nhanes_weekly_accelerometry(path, chunksize=7, max_participants=1)
+        self.assertEqual(X.shape, (1, 10080))
+        np.testing.assert_array_equal(participant_ids, [1])
+
     def test_nhanes_loader_can_rotate_or_explicitly_reorder_days(self) -> None:
         minute_columns = {f"min_{minute:04d}": 0 for minute in range(1, 1441)}
         rows = [{"SEQN": 1, "PAXDAYM": day, **minute_columns, "min_0001": day} for day in range(2, 9)]

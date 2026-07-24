@@ -37,10 +37,14 @@ def main() -> None:
     arguments = _parse_arguments()
     _configure_gpu(require_gpu=arguments.require_gpu)
     gender = _read_gender(arguments.covariates_rds)
+    # Read a modest buffer before the stratified subset, so a requested Colab
+    # cohort still has both genders after joining the RDS data.
+    load_limit = arguments.max_participants * 2 if arguments.max_participants is not None else None
     X, participant_ids = load_nhanes_weekly_accelerometry(
         arguments.activity_path,
         start_day=arguments.start_day,
         verbose=arguments.verbose,
+        max_participants=load_limit,
     )
     X, y, participant_ids = _align_gender(X, participant_ids, gender)
     if arguments.max_participants is not None:
