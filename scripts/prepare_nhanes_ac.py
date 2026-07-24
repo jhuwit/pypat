@@ -37,12 +37,16 @@ def main() -> None:
     )
     arguments = parser.parse_args()
     day_order = tuple(int(day) for day in arguments.day_order.split(",")) if arguments.day_order else None
-    X, participant_ids = load_nhanes_weekly_accelerometry(
-        arguments.data_path,
+    loader_options = dict(
         start_day=arguments.start_day,
         day_order=day_order,
         verbose=arguments.verbose,
-        pad_one_missing_day=arguments.pad_one_missing_day,
+    )
+    if arguments.pad_one_missing_day:
+        loader_options["pad_one_missing_day"] = True
+    X, participant_ids = load_nhanes_weekly_accelerometry(
+        arguments.data_path,
+        **loader_options,
     )
     print(f"Prepared X with shape {X.shape} for {len(participant_ids)} participants.")
     print("participant_ids is aligned row-for-row with X.")

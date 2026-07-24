@@ -50,12 +50,16 @@ def main() -> None:
     outcome = _read_outcome(arguments.covariates_rds, arguments.outcome_column)
     task = _resolve_task(outcome[arguments.outcome_column], arguments.task)
     load_limit = arguments.max_participants * 2 if arguments.max_participants is not None else None
-    X, participant_ids = load_nhanes_weekly_accelerometry(
-        arguments.activity_path,
+    loader_options = dict(
         start_day=arguments.start_day,
         verbose=arguments.verbose,
         max_participants=load_limit,
-        pad_one_missing_day=arguments.pad_one_missing_day,
+    )
+    if arguments.pad_one_missing_day:
+        loader_options["pad_one_missing_day"] = True
+    X, participant_ids = load_nhanes_weekly_accelerometry(
+        arguments.activity_path,
+        **loader_options,
     )
     X, y, participant_ids = _align_outcome(X, participant_ids, outcome, arguments.outcome_column)
     if arguments.max_participants is not None:
