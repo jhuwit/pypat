@@ -4,15 +4,15 @@ Examples
 --------
 Binary gender prediction::
 
-    python scripts/finetune_gender_gpu.py --outcome-column gender --require-gpu
+    python scripts/finetune_gpu.py --outcome-column gender --require-gpu
 
 Continuous BMI prediction::
 
-    python scripts/finetune_gender_gpu.py --outcome-column body_mass_index_kg_m_2 --task continuous
+    python scripts/finetune_gpu.py --outcome-column body_mass_index_kg_m_2 --task continuous
 
 Integer-coded category prediction::
 
-    python scripts/finetune_gender_gpu.py --outcome-column race_hispanic_origin --task categorical
+    python scripts/finetune_gpu.py --outcome-column race_hispanic_origin --task categorical
 """
 
 from __future__ import annotations

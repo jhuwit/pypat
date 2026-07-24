@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Submit from the project root with:
-#   sbatch scripts/finetune_gender_jhpce.sbatch
+#   sbatch scripts/finetune_jhpce.batch
 #
 # Before the first submission, create an environment with:
 #   python -m venv .venv
@@ -48,10 +48,10 @@ echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi
 
 # Override at submission time, for example:
-#   sbatch --export=ALL,OUTCOME_COLUMN=body_mass_index_kg_m_2 scripts/finetune_gender_jhpce.sbatch
+#   sbatch --export=ALL,OUTCOME_COLUMN=body_mass_index_kg_m_2 scripts/finetune_jhpce.batch
 OUTCOME_COLUMN="${OUTCOME_COLUMN:-gender}"
 
-python -u scripts/finetune_gender_gpu.py \
+python -u scripts/finetune_gpu.py \
   --require-gpu \
   --outcome-column "$OUTCOME_COLUMN" \
   --epochs 1000 \

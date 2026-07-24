@@ -101,7 +101,7 @@ All runtime dependencies are declared in `pyproject.toml`.
 Install RDS support with `pip install -e ".[rds]"`, then run:
 
 ```bash
-python scripts/finetune_gender_gpu.py --outcome-column gender --require-gpu --epochs 30 --batch-size 16
+python scripts/finetune_gpu.py --outcome-column gender --require-gpu --epochs 30 --batch-size 16
 ```
 
 The script joins any selected RDS covariate column to complete activity weeks by `SEQN`, uses a
@@ -113,7 +113,7 @@ For a Colab GPU smoke test, use a small participant cohort and conservative
 batch size; the full 10,080-minute attention model is memory intensive:
 
 ```bash
-python scripts/finetune_gender_gpu.py \
+python scripts/finetune_gpu.py \
   --max-participants 100 --epochs 5 --batch-size 2 --output-dir runs/gender_colab
 ```
 
@@ -130,10 +130,10 @@ Use `--task categorical` for integer-coded 3+ level outcomes (for example,
 `race_hispanic_origin`). String outcomes with 3+ levels are categorical by
 default; numeric outcomes with more than two values are continuous by default.
 
-On JHPCE, submit [finetune_gender_jhpce.sbatch](scripts/finetune_gender_jhpce.sbatch)
+On JHPCE, submit [finetune_jhpce.batch](scripts/finetune_jhpce.batch)
 from the project root after creating `.venv` as described at the top of that
 file:
 
 ```bash
-sbatch scripts/finetune_gender_jhpce.sbatch
+sbatch scripts/finetune_jhpce.batch
 ```
