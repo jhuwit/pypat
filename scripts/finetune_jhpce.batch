@@ -47,10 +47,15 @@ echo "Python: $(python --version)"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi
 
+# Override at submission time, for example:
+#   sbatch --export=ALL,OUTCOME_COLUMN=body_mass_index_kg_m_2 scripts/finetune_gender_jhpce.sbatch
+OUTCOME_COLUMN="${OUTCOME_COLUMN:-gender}"
+
 python -u scripts/finetune_gender_gpu.py \
   --require-gpu \
+  --outcome-column "$OUTCOME_COLUMN" \
   --epochs 1000 \
   --patience 200 \
   --batch-size 16 \
-  --output-dir "runs/gender_gpu_${SLURM_JOB_ID}" \
+  --output-dir "runs/${OUTCOME_COLUMN}_gpu_${SLURM_JOB_ID}" \
   -v

@@ -96,15 +96,15 @@ pip install "pypat @ git+https://github.com/jhuwit/pypat.git"
 After publishing a release to PyPI, installation is simply `pip install pypat`.
 All runtime dependencies are declared in `pyproject.toml`.
 
-## GPU gender experiment
+## GPU covariate experiment
 
 Install RDS support with `pip install -e ".[rds]"`, then run:
 
 ```bash
-python scripts/finetune_gender_gpu.py --require-gpu --epochs 30 --batch-size 16
+python scripts/finetune_gender_gpu.py --outcome-column gender --require-gpu --epochs 30 --batch-size 16
 ```
 
-The script joins `gender` to complete activity weeks by `SEQN`, uses a
+The script joins any selected RDS covariate column to complete activity weeks by `SEQN`, uses a
 participant-level train/validation/test split, and saves ROC AUC, average
 precision, accuracy, balanced accuracy, F1, log loss, a confusion matrix, test
 predictions, and the fine-tuned weights under `runs/gender_gpu/`.
@@ -125,6 +125,10 @@ scripts report counts of complete, one-day-missing, more-incomplete, and
 duplicate-day participants with `-v`. Add `--pad-one-missing-day` to retain
 participants missing exactly one daily record; its entire 1,440-minute block is
 filled with zeros.
+
+Use `--task categorical` for integer-coded 3+ level outcomes (for example,
+`race_hispanic_origin`). String outcomes with 3+ levels are categorical by
+default; numeric outcomes with more than two values are continuous by default.
 
 On JHPCE, submit [finetune_gender_jhpce.sbatch](scripts/finetune_gender_jhpce.sbatch)
 from the project root after creating `.venv` as described at the top of that
