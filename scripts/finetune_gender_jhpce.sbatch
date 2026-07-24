@@ -9,7 +9,7 @@
 #   python -m pip install -e ".[rds]"
 
 #SBATCH --job-name=pypat-gender
-#SBATCH --partition=gpu,bstgpu,bstgpu2,bstgpu3
+#SBATCH --partition=gpu
 #SBATCH --gpus=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
