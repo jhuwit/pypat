@@ -4,6 +4,10 @@
 .Ruserdata
 .httr-oauth
 .DS_Store
+__pycache__/
+*.py[cod]
+build/
+*.egg-info/
 .quarto
 src/pypat/__pycache__/
 Foundation_Model_Fine_tune_PAT_+_Model_Explainability.ipynb

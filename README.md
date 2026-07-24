@@ -12,13 +12,59 @@ print(result.task, result.metrics)
 new_predictions = result.predict(new_X)
 ```
 
+To inspect the transformer's attention heads for a small set of participants:
+
+```python
+predictions, layer_attention = result.attention(X[:2])
+# layer_attention[layer] has shape (participants, heads, patches, patches)
+profile = result.attention_profile(X[:2], layer=-1)
+# profile has one normalized score per original time point; plot profile[0]
+```
+
+## NHANES accelerometry data
+
+Prepare complete seven-day NHANES records with:
+
+```bash
+PYTHONPATH=src python scripts/prepare_nhanes_ac.py
+```
+
+The script downloads PhysioNet's source CSV only when it is missing, then
+creates an `X` matrix with one 10,080-minute row per participant and matching
+`participant_ids`. Join your outcome data to those IDs to create `y`, then run
+`fine_tune_pat(X, y)`.
+
+The default sequence is days 2--8, so day 2 is its first day. Use
+`--start-day 8` to make day 8 the first day (cyclically ordered as 8, 2, ..., 7).
+For a non-cyclic custom ordering, use `--day-order 8,7,2,3,4,5,6`; this makes
+day 8 the first and day 2 the third input day.
+
+To rotate an already loaded `X` before sending it to the embedder/model:
+
+```python
+from pypat import rotate_nhanes_weekly_accelerometry
+
+X_shifted = rotate_nhanes_weekly_accelerometry(X, start_day=8)
+result = fine_tune_pat(X_shifted, y)
+```
+
+To make fine-tuning less sensitive to the first-day position, train on all
+seven cyclic day rotations while retaining independent validation/test sets:
+
+```python
+result = fine_tune_pat(X, y, all_day_cycles=True)
+```
+
+This option requires seven-day (10,080-minute) records and augments only the
+training split.
+
 `task="auto"` (the default) uses a binary model for an outcome with exactly two
 distinct values; otherwise it fits a continuous regression model. Set
 `task="binary"` or `task="continuous"` to choose explicitly.
 
-The default PAT-L weights download once to `.pypat_weights/` in the current
-directory. Pass `weights_path="/path/to/weights.h5"` to reuse an existing file
-or choose the download destination. `X` must be a finite 2-D array with one
+The default PAT-L weights download once to your operating system's user cache.
+Pass `weights_path="/path/to/weights.h5"` to reuse an existing file or choose
+the download destination. `X` must be a finite 2-D array with one
 participant per row; the module pads its time axis to the model patch size,
 scales using the training split only, and creates train/validation/test splits.
 
@@ -27,7 +73,7 @@ developing); this installs NumPy, scikit-learn, and TensorFlow. Once pushed to
 GitHub, users can install directly with:
 
 ```bash
-pip install "pypat @ git+https://github.com/OWNER/pypat.git"
+pip install "pypat @ git+https://github.com/jhuwit/pypat.git"
 ```
 
 After publishing a release to PyPI, installation is simply `pip install pypat`.
