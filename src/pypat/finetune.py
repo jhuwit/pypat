@@ -14,6 +14,7 @@ from .data import binary_class_weights, pad_to_length, prepare_y, stratify_label
 from .datasets import augment_all_weekly_cycles
 from .explain import attention_to_timeline
 from .model import PATConfig, PAT_CONFIGS, build_finetuning_model
+from .survival import discrete_time_survival_loss
 from .weights import DEFAULT_WEIGHTS_URL, download_weights
 
 
@@ -24,7 +25,7 @@ class FineTuneResult:
     model: Any
     history: Any
     scaler: StandardScaler
-    task: Literal["binary", "continuous"]
+    task: Literal["binary", "continuous", "categorical", "survival"]
     metrics: dict[str, float]
     weights_path: Path
     config: PATConfig
@@ -33,16 +34,19 @@ class FineTuneResult:
     X_test: np.ndarray
     y_test: np.ndarray
     predictions: np.ndarray
-    class_labels: tuple[Any, Any] | None = None
+    class_labels: np.ndarray | None = None
+    num_time_bins: int | None = None
 
     def predict(self, X: Any) -> np.ndarray:
         """Predict from unscaled, unpadded accelerometry rows."""
-        return self.model.predict(self._prepare_X(X), verbose=0).reshape(-1)
+        return self._format_predictions(self.model.predict(self._prepare_X(X), verbose=0))
 
     def predict_classes(self, X: Any, *, threshold: float = 0.5) -> np.ndarray:
-        """Return original binary labels for ``X`` using a probability threshold."""
-        if self.task != "binary" or self.class_labels is None:
-            raise ValueError("predict_classes is only available for binary outcomes.")
+        """Return original binary or categorical labels for ``X``."""
+        if self.task not in {"binary", "categorical"} or self.class_labels is None:
+            raise ValueError("predict_classes is only available for classification outcomes.")
+        if self.task == "categorical":
+            return self.class_labels[np.argmax(self.predict(X), axis=1)]
         if not 0 <= threshold <= 1:
             raise ValueError("threshold must be between 0 and 1.")
         return np.where(self.predict(X) >= threshold, self.class_labels[1], self.class_labels[0])
@@ -58,11 +62,13 @@ class FineTuneResult:
             weights_path=self.weights_path,
             config=self.config,
             task=self.task,
+            num_classes=len(self.class_labels) if self.task == "categorical" and self.class_labels is not None else None,
+            num_time_bins=self.num_time_bins,
             return_attention=True,
         )
         attention_model.set_weights(self.model.get_weights())
         outputs = attention_model.predict(self._prepare_X(X), verbose=0)
-        return outputs[0].reshape(-1), list(outputs[1:])
+        return self._format_predictions(outputs[0]), list(outputs[1:])
 
     def attention_profile(self, X: Any, *, layer: int = -1) -> np.ndarray:
         """Return a normalized time-point attention profile for one layer."""
@@ -83,12 +89,16 @@ class FineTuneResult:
             raise ValueError(f"X has {values.shape[1]} time points; expected {self.input_length}.")
         return self.scaler.transform(pad_to_length(values, self.padded_input_length)).astype(np.float32)
 
+    def _format_predictions(self, predictions: np.ndarray) -> np.ndarray:
+        return predictions.reshape(-1) if self.task in {"binary", "continuous"} else predictions
+
 
 def fine_tune_pat(
     X: Any,
     y: Any,
     *,
-    task: Literal["auto", "binary", "continuous"] = "auto",
+    task: Literal["auto", "binary", "continuous", "categorical", "survival"] = "auto",
+    num_time_bins: int | None = None,
     weights_path: str | Path | None = None,
     weights_url: str = DEFAULT_WEIGHTS_URL,
     model_size: Literal["small", "medium", "large"] = "large",
@@ -116,7 +126,7 @@ def fine_tune_pat(
     """
     tf = _tensorflow()
     X_array = validate_X(X)
-    y_array, resolved_task, class_labels = prepare_y(y, len(X_array), task)
+    y_array, resolved_task, class_labels = prepare_y(y, len(X_array), task, num_time_bins)
     _validate_options(model_size, test_size, validation_size, epochs, batch_size, learning_rate, patience, weights_path, weights_url)
     if random_state is not None:
         tf.keras.utils.set_random_seed(random_state)
@@ -146,7 +156,14 @@ def fine_tune_pat(
     X_train, X_val, X_test = (scaler.transform(values).astype(np.float32) for values in (X_train, X_val, X_test))
 
     local_weights = download_weights(weights_path, url=weights_url)
-    model = build_finetuning_model(input_size=padded_length, weights_path=local_weights, config=config, task=resolved_task)
+    model = build_finetuning_model(
+        input_size=padded_length,
+        weights_path=local_weights,
+        config=config,
+        task=resolved_task,
+        num_classes=len(class_labels) if resolved_task == "categorical" and class_labels is not None else None,
+        num_time_bins=num_time_bins,
+    )
     if freeze_encoder:
         model.get_layer("encoder_model").trainable = False
     monitor, mode, fit_class_weight = _compile_model(tf, model, resolved_task, learning_rate, y_train, class_weight)
@@ -154,9 +171,11 @@ def fine_tune_pat(
     history = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, batch_size=batch_size,
                         class_weight=fit_class_weight, callbacks=callbacks, verbose=verbose)
     scores = model.evaluate(X_test, y_test, batch_size=batch_size, verbose=0, return_dict=True)
-    predictions = model.predict(X_test, batch_size=batch_size, verbose=0).reshape(-1)
+    predictions = model.predict(X_test, batch_size=batch_size, verbose=0)
+    if resolved_task in {"binary", "continuous"}:
+        predictions = predictions.reshape(-1)
     return FineTuneResult(model, history, scaler, resolved_task, {key: float(value) for key, value in scores.items()},
-                          local_weights, config, original_length, padded_length, X_test_raw, y_test, predictions, class_labels)
+                          local_weights, config, original_length, padded_length, X_test_raw, y_test, predictions, class_labels, num_time_bins)
 
 
 def _compile_model(tf, model, task, learning_rate, y_train, class_weight):
@@ -168,6 +187,13 @@ def _compile_model(tf, model, task, learning_rate, y_train, class_weight):
             metrics=[tf.keras.metrics.AUC(name="auc"), "accuracy"],
         )
         return "val_auc", "max", binary_class_weights(class_weight, y_train)
+    if task == "categorical":
+        model.compile(optimizer=optimizer, loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+        return "val_accuracy", "max", None
+    if task == "survival":
+        num_time_bins = model.output_shape[-1]
+        model.compile(optimizer=optimizer, loss=discrete_time_survival_loss(num_time_bins))
+        return "val_loss", "min", None
     model.compile(
         optimizer=optimizer,
         loss="mse",

@@ -111,13 +111,14 @@ def augment_all_weekly_cycles(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray,
     expected_length = len(NHANES_COMPLETE_DAYS) * NHANES_MINUTES_PER_DAY
     if values.ndim != 2 or values.shape[1] != expected_length:
         raise ValueError(f"X must have shape (participants, {expected_length}).")
-    if outcomes.ndim != 1 or len(outcomes) != len(values):
-        raise ValueError("y must be one-dimensional with one outcome per row of X.")
+    if outcomes.ndim not in {1, 2} or len(outcomes) != len(values):
+        raise ValueError("y must have one row per row of X.")
     rotations = [
         np.concatenate([values[:, offset:], values[:, :offset]], axis=1)
         for offset in range(0, expected_length, NHANES_MINUTES_PER_DAY)
     ]
-    return np.concatenate(rotations, axis=0), np.tile(outcomes, len(rotations))
+    outcome_repetitions = (len(rotations),) + (1,) * (outcomes.ndim - 1)
+    return np.concatenate(rotations, axis=0), np.tile(outcomes, outcome_repetitions)
 
 
 def _resolve_day_order(start_day: int | None, day_order: tuple[int, ...] | None) -> tuple[int, ...]:

@@ -31,14 +31,46 @@ def build_finetuning_model(
     input_size: int,
     weights_path: str | Path,
     config: PATConfig,
-    task: Literal["binary", "continuous"],
+    task: Literal["binary", "continuous", "categorical", "survival"],
+    num_classes: int | None = None,
+    num_time_bins: int | None = None,
     return_attention: bool = False,
 ):
-    """Build a PAT prediction model, optionally returning layer attention.
+    """Build a PAT encoder with a task-specific prediction head.
 
-    When ``return_attention`` is true, prediction returns a list containing
-    ``[prediction, layer_1_attention, ..., layer_n_attention]``. Each layer's
-    attention has shape ``(participants, heads, patches, patches)``.
+    Parameters
+    ----------
+    input_size
+        Number of input time points after any required padding.
+    weights_path
+        Path to pretrained encoder weights compatible with ``config``.
+    config
+        PAT architecture metadata, usually one of :data:`PAT_CONFIGS`.
+    task
+        Selects the prediction head:
+
+        - ``"binary"``: one sigmoid probability.
+        - ``"continuous"``: one linear regression prediction.
+        - ``"categorical"``: ``num_classes`` softmax probabilities.
+        - ``"survival"``: ``num_time_bins`` sigmoid discrete-time hazards.
+
+    num_classes
+        Required for ``task="categorical"`` and must be at least three. Each
+        output position corresponds to the integer-encoded class used with a
+        sparse categorical cross-entropy loss.
+    num_time_bins
+        Required for ``task="survival"``. It is the number of discrete hazard
+        intervals and therefore the width of the output. Survival labels must
+        be supplied separately as ``[time_bin, event_observed]``, where
+        ``time_bin`` is a zero-based integer from ``0`` through
+        ``num_time_bins - 1`` and ``event_observed`` is 1 for an event or 0 for
+        right-censoring.
+    return_attention
+        When true, prediction returns a list containing
+        ``[prediction, layer_1_attention, ..., layer_n_attention]``. Each
+        attention tensor has shape ``(participants, heads, patches, patches)``.
+        This is memory-intensive for long recordings and is intended for
+        explainability rather than training.
     """
     tf = _tensorflow()
     encoder = build_encoder_model(
@@ -56,8 +88,20 @@ def build_finetuning_model(
     x = tf.keras.layers.GlobalAveragePooling1D(name="global_avg_pool")(encoded)
     x = tf.keras.layers.Dropout(0.1, name="dropout")(x)
     x = tf.keras.layers.Dense(128, activation="relu", name="dense_128")(x)
-    activation = "sigmoid" if task == "binary" else "linear"
-    prediction = tf.keras.layers.Dense(1, activation=activation, name="output")(x)
+    if task == "binary":
+        prediction = tf.keras.layers.Dense(1, activation="sigmoid", name="output")(x)
+    elif task == "continuous":
+        prediction = tf.keras.layers.Dense(1, activation="linear", name="output")(x)
+    elif task == "categorical":
+        if num_classes is None or num_classes < 3:
+            raise ValueError("task='categorical' requires num_classes of at least 3.")
+        prediction = tf.keras.layers.Dense(num_classes, activation="softmax", name="output")(x)
+    elif task == "survival":
+        if num_time_bins is None or num_time_bins < 1:
+            raise ValueError("task='survival' requires a positive num_time_bins.")
+        prediction = tf.keras.layers.Dense(num_time_bins, activation="sigmoid", name="hazard")(x)
+    else:
+        raise ValueError(f"Unknown task: {task!r}.")
     outputs = [prediction, *attention] if return_attention else prediction
     return tf.keras.Model(inputs=inputs, outputs=outputs, name="finetuning_model")
 

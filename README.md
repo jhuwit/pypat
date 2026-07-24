@@ -62,6 +62,23 @@ training split.
 distinct values; otherwise it fits a continuous regression model. Set
 `task="binary"` or `task="continuous"` to choose explicitly.
 
+For a categorical outcome with three or more levels, specify a softmax head:
+
+```python
+result = fine_tune_pat(X, y_category, task="categorical")
+labels = result.predict_classes(new_X)
+```
+
+For a time-to-event outcome, use discrete time bins and a censoring-aware
+hazard head. Supply `y_survival` with two columns: zero-based `time_bin` and
+`event_observed` (1 for an event, 0 for right-censoring):
+
+```python
+y_survival = np.column_stack([time_bin, event_observed])
+result = fine_tune_pat(X, y_survival, task="survival", num_time_bins=12)
+hazards = result.predict(new_X)  # one event hazard per time bin
+```
+
 The default PAT-L weights download once to your operating system's user cache.
 Pass `weights_path="/path/to/weights.h5"` to reuse an existing file or choose
 the download destination. `X` must be a finite 2-D array with one

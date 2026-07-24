@@ -15,3 +15,4 @@ WEIGHTS_encoder_large_90_unsmoothed_mse_all.h5
 nhanes_1440_AC.csv.xz
 foundation_model_fine_tune_pat_+_model_explainability.py
 __pycache__/
+covariates_mortality_G_H_tidy.rds

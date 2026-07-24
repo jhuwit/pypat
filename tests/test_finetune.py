@@ -24,13 +24,23 @@ class FineTuneHelpersTest(unittest.TestCase):
         y, task, labels = prepare_y(["control", "case", "control"], 3, "auto")
         np.testing.assert_array_equal(y, [1, 0, 1])
         self.assertEqual(task, "binary")
-        self.assertEqual(labels, ("case", "control"))
+        np.testing.assert_array_equal(labels, ["case", "control"])
 
     def test_continuous_outcome_is_preserved(self) -> None:
         y, task, labels = prepare_y([1.2, 4.5, 9.0], 3, "auto")
         np.testing.assert_allclose(y, [1.2, 4.5, 9.0])
         self.assertEqual(task, "continuous")
         self.assertIsNone(labels)
+
+    def test_categorical_and_survival_outcomes_are_prepared(self) -> None:
+        categorical, task, labels = prepare_y(["low", "medium", "high"], 3, "categorical")
+        self.assertEqual(task, "categorical")
+        self.assertEqual(categorical.shape, (3,))
+        np.testing.assert_array_equal(labels, ["high", "low", "medium"])
+        survival, task, labels = prepare_y([[0, 1], [2, 0], [1, 1]], 3, "survival", num_time_bins=3)
+        self.assertEqual(task, "survival")
+        self.assertIsNone(labels)
+        np.testing.assert_array_equal(survival, [[0, 1], [2, 0], [1, 1]])
 
     def test_padding_only_extends_the_time_axis(self) -> None:
         values = np.ones((2, 10), dtype=np.float32)
@@ -46,7 +56,7 @@ class FineTuneHelpersTest(unittest.TestCase):
             self.assertEqual(download_weights(path), path)
 
     def test_binary_split_requires_both_classes(self) -> None:
-        with self.assertRaisesRegex(ValueError, "only one binary class"):
+        with self.assertRaisesRegex(ValueError, "only one observed class"):
             stratify_labels(np.array([0, 0]), "binary", "test")
 
     def test_balanced_weights_inverse_frequency(self) -> None:
