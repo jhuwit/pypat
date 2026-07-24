@@ -49,7 +49,7 @@ nvidia-smi
 
 # Override at submission time, for example:
 #   sbatch --export=ALL,OUTCOME_COLUMN=body_mass_index_kg_m_2 scripts/finetune_jhpce.batch
-OUTCOME_COLUMN="${OUTCOME_COLUMN:-gender}"
+OUTCOME_COLUMN="${OUTCOME_COLUMN:-general_health_condition}"
 
 python -u scripts/finetune_gpu.py \
   --require-gpu \
